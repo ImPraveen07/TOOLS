@@ -63,11 +63,9 @@
       background: #0056b3;
     }
 
-    .editing {
-  background: #ffc107 !important; 
-  color: ;
-      
-}
+    .edit-mode {
+      background: #ffc107;
+    }
 
     .app-grid {
       display: grid;
@@ -135,7 +133,7 @@
     <div class="link-form">
       <input type="text" id="link-input" placeholder="Paste your link here">
       <button id="add-button">Add</button>
-      <button id="edit-button" class="editing">Edit</button>
+      <button id="edit-button" class="edit-mode">Edit</button>
     </div>
     <div class="link-form">
       <input type="text" id="sync-input" placeholder="Paste sync URL here">
@@ -174,12 +172,14 @@
       localStorage.setItem('apps', JSON.stringify(apps));
     }
 
+    // Remove domain extensions like .com, .org, etc.
     function formatAppName(url) {
       const domain = new URL(url).hostname.replace(/^www\./, '');
-      const formattedName = domain.replace(/\.(com|org|net|io|co)$/i, '');
+      const formattedName = domain.replace(/\.(com|org|net|io|co)$/i, ''); // Remove common domain extensions
       return formattedName;
     }
 
+    // Create App Element
     function createAppElement(url, name, image) {
       const app = document.createElement('div');
       app.classList.add('app');
@@ -195,31 +195,13 @@
       });
       app.addEventListener('click', () => {
         if (!isEditing) {
-          window.open(url, '_blank');
+          window.open(url, '_blank'); // Open the link in a new tab
         }
       });
       appGrid.appendChild(app);
     }
 
-    // Handle Edit Mode
-    editButton.addEventListener('click', () => {
-      isEditing = !isEditing;
-
-      if (isEditing) {
-        editButton.classList.add('editing');
-      } else {
-        editButton.classList.remove('editing');
-      }
-
-      appGrid.querySelectorAll('.delete-btn').forEach(btn => {
-        if (isEditing) {
-          btn.classList.add('show');
-        } else {
-          btn.classList.remove('show');
-        }
-      });
-    });
-
+    // Add App
     addButton.addEventListener('click', () => {
       const url = linkInput.value.trim();
       if (!url) return alert('Please enter a valid URL.');
@@ -230,6 +212,37 @@
       saveApps();
     });
 
+    // Edit Mode
+    editButton.addEventListener('click', () => {
+      isEditing = !isEditing;
+      editButton.classList.toggle('edit-mode', !isEditing);
+      appGrid.querySelectorAll('.delete-btn').forEach(btn => {
+        if (isEditing) {
+          btn.classList.add('show');
+        } else {
+          btn.classList.remove('show');
+        }
+      });
+    });
+
+    // Sync Apps
+    syncButton.addEventListener('click', () => {
+      const sharedLink = syncInput.value.trim();
+      if (!sharedLink) return alert('Please enter a valid sync URL.');
+      try {
+        const sharedApps = JSON.parse(decodeURIComponent(sharedLink.split('?data=')[1]));
+        sharedApps.forEach(app => {
+          if (![...appGrid.children].some(existing => existing.dataset.url === app.url)) {
+            createAppElement(app.url, app.name, app.image);
+          }
+        });
+        saveApps();
+      } catch (err) {
+        alert('Invalid sync URL.');
+      }
+    });
+
+    // Copy Sync URL
     copySyncUrlButton.addEventListener('click', () => {
       const apps = Array.from(appGrid.children).map(app => ({
         url: app.dataset.url,
@@ -237,11 +250,14 @@
         image: app.querySelector('img').src,
       }));
       const syncUrl = `${window.location.origin}${window.location.pathname}?data=${encodeURIComponent(JSON.stringify(apps))}`;
-      navigator.clipboard.writeText(syncUrl)
-        .then(() => alert('Sync URL copied to clipboard!'))
-        .catch(() => alert('Failed to copy sync URL.'));
+      navigator.clipboard.writeText(syncUrl).then(() => {
+        alert('Sync URL copied to clipboard!');
+      }).catch(err => {
+        alert('Failed to copy sync URL.');
+      });
     });
 
+    // Load Apps on Page Load
     loadApps();
   </script>
 </body>
