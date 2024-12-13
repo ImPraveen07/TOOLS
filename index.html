@@ -87,6 +87,7 @@
       box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
       position: relative;
       cursor: pointer;
+      transition: background 0.3s ease-in-out;
     }
 
     .app img {
@@ -113,10 +114,17 @@
       height: 20px;
       text-align: center;
       cursor: pointer;
+      display: none;
     }
 
     .delete-btn.show {
       display: block;
+    }
+
+    .button-container {
+      display: flex;
+      justify-content: center;
+      gap: 10px;
     }
   </style>
 </head>
@@ -131,7 +139,7 @@
       <input type="text" id="sync-input" placeholder="Paste sync URL here">
       <button id="sync-button">Sync</button>
     </div>
-    <div>
+    <div class="button-container">
       <button id="copy-sync-url-button">Copy Sync URL</button>
     </div>
   </div>
@@ -164,6 +172,13 @@
       localStorage.setItem('apps', JSON.stringify(apps));
     }
 
+    // Remove domain extensions like .com, .org, etc.
+    function formatAppName(url) {
+      const domain = new URL(url).hostname.replace(/^www\./, '');
+      const formattedName = domain.replace(/\.(com|org|net|io|co)$/i, ''); // Remove common domain extensions
+      return formattedName;
+    }
+
     // Create App Element
     function createAppElement(url, name, image) {
       const app = document.createElement('div');
@@ -178,6 +193,11 @@
         app.remove();
         saveApps();
       });
+      app.addEventListener('click', () => {
+        if (!isEditing) {
+          window.open(url, '_blank'); // Open the link in a new tab
+        }
+      });
       appGrid.appendChild(app);
     }
 
@@ -185,11 +205,24 @@
     addButton.addEventListener('click', () => {
       const url = linkInput.value.trim();
       if (!url) return alert('Please enter a valid URL.');
-      const domain = new URL(url).hostname;
-      const image = `https://www.google.com/s2/favicons?sz=64&domain=${domain}`;
-      createAppElement(url, domain, image);
+      const domainName = formatAppName(url);
+      const image = `https://www.google.com/s2/favicons?sz=64&domain=${domainName}`;
+      createAppElement(url, domainName, image);
       linkInput.value = '';
       saveApps();
+    });
+
+    // Edit Mode
+    editButton.addEventListener('click', () => {
+      isEditing = !isEditing;
+      editButton.classList.toggle('edit-mode', !isEditing);
+      appGrid.querySelectorAll('.delete-btn').forEach(btn => {
+        if (isEditing) {
+          btn.classList.add('show');
+        } else {
+          btn.classList.remove('show');
+        }
+      });
     });
 
     // Sync Apps
@@ -223,14 +256,6 @@
         alert('Failed to copy sync URL.');
       });
     });
-
-    // Parse URL Query and Load Shared Apps
-    const queryParams = new URLSearchParams(window.location.search);
-    if (queryParams.has('data')) {
-      const sharedApps = JSON.parse(decodeURIComponent(queryParams.get('data')));
-      sharedApps.forEach(app => createAppElement(app.url, app.name, app.image));
-      saveApps();
-    }
 
     // Load Apps on Page Load
     loadApps();
