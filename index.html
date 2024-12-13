@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dynamic Web App Grid with Sync</title>
+  <style>
+    /* Basic Reset */
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    /* Body Styling */
+    body {
+      font-family: Arial, sans-serif;
+      background: linear-gradient(130deg, #121212, #1a1a2e);
+      color: #fff;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: flex-start;
+      overflow: hidden;
+    }
+
+    /* Header Styling */
+    .header {
+      width: 100%;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      align-items: center;
+      margin: 20px;
+    }
+
+    .link-form {
+      display: flex;
+      gap: 10px;
+      width: 100%;
+      max-width: 600px;
+    }
+
+    input[type="text"] {
+      flex: 1;
+      padding: 10px;
+      border: none;
+      border-radius: 5px;
+      font-size: 16px;
+      outline: none;
+    }
+
+    button {
+      padding: 10px 15px;
+      background: #007BFF;
+      border: none;
+      border-radius: 5px;
+      color: #fff;
+      font-size: 16px;
+      cursor: pointer;
+      transition: background 0.3s;
+    }
+
+    button:hover {
+      background: #0056b3;
+    }
+
+    .edit-mode {
+      background: #ffc107;
+    }
+
+    /* App Grid */
+    .app-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+      gap: 20px;
+      width: 100%;
+      max-width: 600px;
+      margin: 20px;
+      overflow-y: auto;
+      max-height: calc(100vh - 200px); /* Adjust to fit within viewport */
+      padding: 10px;
+      scrollbar-width: thin;
+      scrollbar-color: #888 #222;
+    }
+
+    /* Scrollbar Styling for Webkit */
+    .app-grid::-webkit-scrollbar {
+      width: 8px;
+    }
+
+    .app-grid::-webkit-scrollbar-thumb {
+      background: #888;
+      border-radius: 5px;
+    }
+
+    .app-grid::-webkit-scrollbar-thumb:hover {
+      background: #555;
+    }
+
+    .app {
+      background: #222;
+      border-radius: 10px;
+      text-align: center;
+      padding: 10px;
+      box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+      position: relative;
+      cursor: pointer;
+    }
+
+    .app img {
+      width: 50px;
+      height: 50px;
+      margin-bottom: 10px;
+      border-radius: 5px;
+    }
+
+    .app h3 {
+      font-size: 14px;
+      word-break: break-word;
+    }
+
+    .delete-btn {
+      position: absolute;
+      top: 5px;
+      right: 5px;
+      background: #ff4d4d;
+      border: none;
+      color: white;
+      font-size: 12px;
+      border-radius: 50%;
+      width: 20px;
+      height: 20px;
+      line-height: 20px;
+      text-align: center;
+      cursor: pointer;
+      display: none;
+    }
+
+    .delete-btn.show {
+      display: block;
+    }
+
+    /* Input for uploading images */
+    input[type="file"] {
+      display: none;
+    }
+  </style>
+</head>
+<body>
+  <div class="header" id="header">
+    <div class="link-form">
+      <input type="text" id="link-input" placeholder="Paste your link here">
+      <button id="add-button">Add</button>
+      <button id="edit-button" class="edit-mode">Edit</button>
+    </div>
+    <div class="link-form">
+      <input type="text" id="sync-input" placeholder="Paste sync URL here">
+      <button id="sync-button">Sync</button>
+    </div>
+  </div>
+
+  <div class="app-grid" id="app-grid"></div>
+  <input type="file" id="image-upload" accept="image/*">
+  
+  <script>
+    const addButton = document.getElementById('add-button');
+    const editButton = document.getElementById('edit-button');
+    const syncButton = document.getElementById('sync-button');
+    const linkInput = document.getElementById('link-input');
+    const syncInput = document.getElementById('sync-input');
+    const appGrid = document.getElementById('app-grid');
+    const imageUpload = document.getElementById('image-upload');
+    let isEditing = false;
+    let unsavedChanges = false;
+    let selectedApp = null;
+
+    // Load Apps from LocalStorage
+    function loadApps() {
+      const apps = JSON.parse(localStorage.getItem('apps')) || [];
+      apps.forEach(app => createAppElement(app.url, app.name, app.image));
+    }
+
+    // Save Apps to LocalStorage
+    function saveApps() {
+      const apps = Array.from(appGrid.children).map(app => ({
+        url: app.dataset.url,
+        name: app.querySelector('h3').textContent,
+        image: app.querySelector('img').src,
+      }));
+      localStorage.setItem('apps', JSON.stringify(apps));
+      unsavedChanges = false;
+    }
+
+    // Create App Element
+    function createAppElement(url, name, image) {
+      const app = document.createElement('div');
+      app.classList.add('app');
+      app.dataset.url = url;
+      app.innerHTML = `
+        <img src="${image}" alt="${name} Logo" class="app-img">
+        <h3 contenteditable="${isEditing}">${name}</h3>
+        <button class="delete-btn">&times;</button>
+      `;
+
+      app.addEventListener('click', (e) => {
+        if (!isEditing) window.open(url, '_blank');
+      });
+
+      const deleteBtn = app.querySelector('.delete-btn');
+      deleteBtn.addEventListener('click', () => {
+        app.remove();
+        unsavedChanges = true;
+      });
+
+      appGrid.appendChild(app);
+    }
+
+    // Add App
+    addButton.addEventListener('click', () => {
+      const url = linkInput.value.trim();
+      if (!url) return alert('Please enter a valid URL.');
+      const domain = new URL(url).hostname;
+      const favicon = `https://www.google.com/s2/favicons?sz=64&domain=${domain}`;
+      createAppElement(url, domain, favicon);
+      linkInput.value = '';
+      unsavedChanges = true;
+    });
+
+    // Sync Apps
+    syncButton.addEventListener('click', () => {
+      const sharedLink = syncInput.value.trim();
+      if (!sharedLink) return alert('Please enter a valid sync URL.');
+      try {
+        const sharedApps = JSON.parse(decodeURIComponent(sharedLink));
+        sharedApps.forEach(app => createAppElement(app.url, app.name, app.image));
+        saveApps();
+        syncInput.value = '';
+      } catch (err) {
+        alert('Invalid sync URL.');
+      }
+    });
+
+    // Toggle Edit Mode
+    editButton.addEventListener('click', () => {
+      isEditing = !isEditing;
+      editButton.textContent = isEditing ? 'Save' : 'Edit';
+      document.querySelectorAll('.delete-btn').forEach(btn => btn.classList.toggle('show', isEditing));
+      if (!isEditing && unsavedChanges) saveApps();
+    });
+
+    // Load Apps on Page Load
+    loadApps();
+  </script>
+</body>
+</html>
